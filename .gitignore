@@ -1,0 +1,6 @@
+/.env
+/.venv
+/CLAUDE.md
+/QA_RESULTS.md
+/qa_test.py
+/test.ipynb
