@@ -1,11 +1,13 @@
 from random import randint
 
 _CAMPOS = [
-    {"pergunta": "Poderia descrever como foi a aula?", "campo": "description", "tipo": "texto livre"},
-    {"pergunta": "Quantos alunos compareceram?", "campo": "student_count", "tipo": "número inteiro"},
+    {"pergunta": "Poderia descrever como foi a aula?", "campo": "description", "tipo": "texto livre", "label": "Descrição"},
+    {"pergunta": "Quantos alunos compareceram?", "campo": "student_count", "tipo": "número inteiro", "label": "Alunos presentes"},
 ]
 
-json_model = {
+coleta_model = {c["campo"]: None for c in _CAMPOS}
+
+json_model_template = {
     "lesson_id": randint(1111, 4444),
     "educator_id": 1234,
     "educator_name": "Eman",
@@ -16,5 +18,4 @@ json_model = {
     "description": None,
     "student_count": None,
     "status": "draft"
-
 }
