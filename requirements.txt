@@ -4,3 +4,6 @@ langchain-groq
 langchain-community
 langchain-core
 pydantic
+fastapi
+uvicorn
+streamlit
