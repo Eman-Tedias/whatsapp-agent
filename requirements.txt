@@ -7,3 +7,6 @@ pydantic
 fastapi
 uvicorn
 streamlit
+groq
+python-multipart
+httpx

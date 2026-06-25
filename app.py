@@ -3,6 +3,7 @@ import requests
 import streamlit as st
 
 API_URL = "http://localhost:8000/message"
+AUDIO_URL = "http://localhost:8000/audio"
 
 st.set_page_config(page_title="Registro de Aula", page_icon="📚", layout="centered")
 
@@ -53,6 +54,22 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
+def call_audio_api(audio_bytes: bytes) -> tuple[str, str]:
+    try:
+        resp = requests.post(
+            AUDIO_URL,
+            data={"session_id": st.session_state.session_id},
+            files={"audio": ("audio.ogg", audio_bytes, "audio/ogg")},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("reply", ""), data.get("transcript", "")
+    except requests.exceptions.ConnectionError:
+        return "Servidor não encontrado. Certifique-se de que server.py está rodando em localhost:8000.", ""
+    except Exception as e:
+        return f"Erro: {e}", ""
+
 if prompt := st.chat_input("Digite sua mensagem..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -63,4 +80,18 @@ if prompt := st.chat_input("Digite sua mensagem..."):
             reply = call_api(prompt)
         st.markdown(reply)
 
+    st.session_state.messages.append({"role": "assistant", "content": reply})
+
+audio_value = st.audio_input("Ou grave um áudio")
+if audio_value is not None:
+    audio_bytes = audio_value.read()
+    with st.chat_message("user"):
+        st.audio(audio_value)
+    with st.chat_message("assistant"):
+        with st.spinner(""):
+            reply, transcript = call_audio_api(audio_bytes)
+        if transcript:
+            st.caption(f"_Transcrição: {transcript}_")
+        st.markdown(reply)
+    st.session_state.messages.append({"role": "user", "content": f"[Áudio] {transcript}"})
     st.session_state.messages.append({"role": "assistant", "content": reply})
