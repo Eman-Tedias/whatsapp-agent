@@ -1,8 +1,6 @@
 dotenv
 ipykernel
-langchain-groq
-langchain-community
-langchain-core
+./vendor/harpy-0.1.0-py3-none-any.whl
 pydantic
 fastapi
 uvicorn

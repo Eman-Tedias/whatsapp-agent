@@ -16,4 +16,6 @@ async def transcribe(audio_bytes: bytes, filename: str = "audio.ogg") -> str:
             language="pt",
             response_format="text",
         )
-    return await asyncio.to_thread(_call)
+    texto = await asyncio.to_thread(_call)
+    print(f"[LLM:whisper] entrada={len(audio_bytes)} bytes ({filename}) saida={texto!r}")
+    return texto

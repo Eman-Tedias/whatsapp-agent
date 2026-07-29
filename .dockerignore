@@ -1,0 +1,11 @@
+.env
+.venv
+.git
+.gitignore
+__pycache__
+*.pyc
+images/*
+QA_RESULTS.md
+qa_test.py
+test.ipynb
+CLAUDE.md

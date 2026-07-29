@@ -1,5 +1,6 @@
 /.env
 /.venv
+/images
 /CLAUDE.md
 /QA_RESULTS.md
 /qa_test.py
