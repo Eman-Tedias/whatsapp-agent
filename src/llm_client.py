@@ -5,7 +5,7 @@ load_dotenv()
 
 from harpy import text
 
-from prompts import SYSTEM_GUARDRAIL_PROMPT
+from guardrail_prompt import SYSTEM_GUARDRAIL_PROMPT
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 # GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")

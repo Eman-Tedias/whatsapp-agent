@@ -210,11 +210,11 @@ class Session(BaseModel):
         return "Até a próxima! 👋"
 
     async def _step_coleta(self, text: str) -> str:
-        from conversation import mensagem_coleta
+        from deterministic.conversation import mensagem_coleta
         return await mensagem_coleta(self, text)
 
     async def _step_edicao(self, text: str) -> str:
-        from conversation import mensagem_edicao
+        from deterministic.conversation import mensagem_edicao
         return await mensagem_edicao(self, text)
 
     async def step(self, text: str) -> str:
@@ -243,7 +243,7 @@ class Session(BaseModel):
         self.json_model[campo_nome] = f"{count} foto(s) recebida(s)"
         return count, False
 
-    def registrar_imagem(self, caminho: str, sha256: str | None = None) -> str:
+    async def registrar_imagem(self, caminho: str, sha256: str | None = None, media_id: str | None = None, legenda: str | None = None) -> str:
         prefixo = self._prefixo_saudacao()
         return f"{prefixo}{self._registrar_imagem_corpo(caminho, sha256)}"
 

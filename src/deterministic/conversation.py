@@ -2,8 +2,8 @@ import time
 
 from lesson import _CAMPOS as campos, _CAMPOS_TEXTO as campos_texto, _CAMPOS_IMAGEM as campos_imagem
 from llm_client import new_call
-from extraction import run_bulk, run_edit, run_fallback, run_media_done, run_resolver_foto_pendente
-from schemas import Roteiro
+from deterministic.extraction import run_bulk, run_edit, run_fallback, run_media_done, run_resolver_foto_pendente
+from deterministic.schemas import Roteiro
 
 MAX_EDICOES = 5
 MAX_SEM_ALTERACAO = 3

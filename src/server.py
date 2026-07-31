@@ -7,10 +7,18 @@ from collections import deque
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, UploadFile, File, Request, Response
-from schemas import Conversa, Roteiro, Session
 from transcription import transcribe
 
 load_dotenv()
+
+# Duas implementações do router coexistem (mesma interface pública: Session.step(text)
+# e Session.registrar_imagem(...)) -- essa env var escolhe qual entra em produção sem
+# precisar mexer no resto do server.py.
+ROUTER_MODE = os.getenv("ROUTER_MODE", "deterministic")
+if ROUTER_MODE == "agentic":
+    from agentic.schemas import Conversa, Roteiro, Session
+else:
+    from deterministic.schemas import Conversa, Roteiro, Session
 
 WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
@@ -146,7 +154,7 @@ async def whatsapp_send_text(to: str, text: str, tentativas: int = 3) -> bool:
     print(f"[WA/SEND FAILED] não consegui enviar mensagem pra {to} após {tentativas} tentativas")
     return False
 
-async def _processar_imagem(session: Session, sender: str, media_id: str, mime_type: str, sha256: str | None) -> str | None:
+async def _processar_imagem(session: Session, sender: str, media_id: str, mime_type: str, sha256: str | None, legenda: str | None = None) -> str | None:
     """Baixa e registra uma imagem, seja ela recebida como foto ou como documento
     (WhatsApp manda o mesmo .jpg/.png por qualquer um dos dois caminhos, dependendo
     de qual botão o usuário tocou no app). Retorna None se já foi processada antes."""
@@ -160,7 +168,7 @@ async def _processar_imagem(session: Session, sender: str, media_id: str, mime_t
     with open(filepath, "wb") as f:
         f.write(image_bytes)
     print(f"[WA/image] salvo em {filepath} (mime_type={mime_type!r})")
-    return session.registrar_imagem(filepath, sha256=sha256)
+    return await session.registrar_imagem(filepath, sha256=sha256, media_id=media_id, legenda=legenda)
 
 
 async def _download_whatsapp_media(media_id: str) -> bytes:
@@ -232,7 +240,8 @@ async def webhook_receive(request: Request):
                 media_id = msg["image"]["id"]
                 mime_type = msg["image"].get("mime_type", "image/jpeg")
                 sha256 = msg["image"].get("sha256")
-                reply = await _processar_imagem(session, sender, media_id, mime_type, sha256)
+                legenda = msg["image"].get("caption")
+                reply = await _processar_imagem(session, sender, media_id, mime_type, sha256, legenda=legenda)
                 if reply is None:
                     return {"status": "duplicate"}
 
@@ -243,7 +252,8 @@ async def webhook_receive(request: Request):
                 media_id = msg["document"]["id"]
                 mime_type = msg["document"]["mime_type"]
                 sha256 = msg["document"].get("sha256")
-                reply = await _processar_imagem(session, sender, media_id, mime_type, sha256)
+                legenda = msg["document"].get("caption")
+                reply = await _processar_imagem(session, sender, media_id, mime_type, sha256, legenda=legenda)
                 if reply is None:
                     return {"status": "duplicate"}
 

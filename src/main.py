@@ -1,4 +1,9 @@
-from schemas import Session
+import os
+
+if os.getenv("ROUTER_MODE", "deterministic") == "agentic":
+    from agentic.schemas import Session
+else:
+    from deterministic.schemas import Session
 
 
 def main():
