@@ -12,16 +12,16 @@ Rigid forms are a recurring pain point for anyone who needs to log field informa
 
 WhatsApp is nearly universal among the project's target users. No need to install a new app, learn a new interface, or have any experience with data collection systems. This lowers the barrier especially for collaborators with less digital familiarity, who already use WhatsApp daily, instead of having to adapt to a new form or dashboard.
 
-## Why deterministic (and not ReAct)
+## Two conversation architectures: deterministic and agentic
 
-The conversation flow is driven by an explicit state machine (phases `coleta` → `edicao`, with attempt tracking, field index, and history), not by an autonomous agent with a reasoning/acting loop (ReAct pattern).
-
-A ReAct agent gives the model more freedom and responsibility over what to do at each step. That's useful in open-ended domains, but here it raises the risk of drifting from the flow, skipping validations, or exposing data unpredictably. The deterministic model keeps:
+The flow started as an explicit state machine (phases `coleta` → `edicao`, with attempt tracking, field index, and history): the LLM only extracts/interprets at specific points, called with schema-validated structured output, and the next step is always decided by Python code looking at the session state — never by the model. This gives:
 
 - Flexibility for the user: answers can come in natural language and out of order, the LLM extracts whatever it can identify in each message.
-- Control and safety for the system: each field has a defined type, validation, and retry limit. The LLM is only used to extract/interpret, never to decide the direction of the conversation.
+- Control and safety for the system: each field has a defined type, validation, and retry limit.
 
-The LLM acts as a structured extractor (`with_structured_output`), called at specific points in the flow. It does not orchestrate the conversation.
+In practice, though, hand-covering every real behavior variation — media confirmation, editing in parallel with collection, hostile tone, photos with no clear context, per-step retry limits — meant mapping a growing number of explicit states and exceptions in code. We built a second implementation, **agentic**: a single structured call per turn decides field extraction, media state, and session closing all at once, still via schema-validated output (not a free-form ReAct agent, just concentrating the decision into one call instead of several code steps) — and it's working very well in testing.
+
+Both implementations coexist in the code (`src/deterministic/` and `src/agentic/`) and are interchangeable via the `ROUTER_MODE` variable (`deterministic` by default, or `agentic`), which lets us compare the two side by side before deciding which goes to production.
 
 ## How it works
 
