@@ -1,6 +1,6 @@
 dotenv
 ipykernel
-./vendor/harpy-0.1.0-py3-none-any.whl
+git+https://github.com/Eman-Tedias/harpy.git
 pydantic
 fastapi
 uvicorn
