@@ -5,12 +5,10 @@ import time
 from agentic.state import AgentState, TurnResult, NENHUM, build_turn_model, campos_pendentes, campo_atual
 from harpy import text
 from agentic.prompts import ROUTER_SYSTEM_PROMPT, ROUTER_USER_TEMPLATE
-from llm_client import GEMINI_MODEL, GROQ_FALLBACK_MODEL
 from guardrail_prompt import SYSTEM_GUARDRAIL_PROMPT
+from config import GEMINI_MODEL, GROQ_FALLBACK_MODEL, TURNS_BY_FIELD
 
 logger = logging.getLogger(__name__)
-
-TURNS_BY_FIELD = 4
 
 # Padrões de PII a mascarar antes de logar texto livre (mensagem do usuário, reply do
 # bot): e-mail, CPF, telefone/qualquer sequência longa de dígitos. Mantém o texto

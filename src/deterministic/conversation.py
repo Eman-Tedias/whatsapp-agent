@@ -4,12 +4,7 @@ from lesson import _CAMPOS as campos, _CAMPOS_TEXTO as campos_texto, _CAMPOS_IMA
 from llm_client import new_call
 from deterministic.extraction import run_bulk, run_edit, run_fallback, run_media_done, run_resolver_foto_pendente
 from deterministic.schemas import Roteiro
-
-MAX_EDICOES = 5
-MAX_SEM_ALTERACAO = 3
-MAX_TENTATIVAS_MIDIA = 3
-MAX_TENTATIVAS_GUARDRAIL = 3
-MAX_TENTATIVAS_CAMPO = 3
+from config import MAX_EDICOES, MAX_SEM_ALTERACAO, MAX_TENTATIVAS_MIDIA, MAX_TENTATIVAS_GUARDRAIL, MAX_TENTATIVAS_CAMPO
 
 _AVISO_TOM_HOSTIL = "Ei, não precisa falar assim comigo -- só quero te ajudar. 😊\n\n"
 

@@ -4,8 +4,8 @@ from deterministic.schemas import Conversa
 from agentic.state import AgentState, campo_atual
 from agentic.lesson_adapter import new_state_from_lesson
 from agentic.router import router_turn
+from config import MAX_TENTATIVAS_GUARDRAIL
 
-MAX_TENTATIVAS_GUARDRAIL = 3
 _GUARDRAIL_BLOQUEADO_MARCADOR = "Guardrail blocked the input"
 
 

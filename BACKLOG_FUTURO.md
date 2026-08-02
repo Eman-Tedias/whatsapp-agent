@@ -54,3 +54,7 @@ Ponto do brainstorm de baixa inclusão digital ainda não testado com material r
 ## Guardrail: tom hostil vs. intenção maliciosa
 
 Ajustamos o guardrail pra distinguir grosseria (permitida, com pushback educado) de manipulação real (bloqueada). Validado com os casos que mapeamos, mas é uma área de julgamento fino da LLM que pode precisar de mais ajuste conforme surgirem casos reais de uso não previstos aqui.
+
+## Chamada dedicada pra confirmação de finalização (`done`)
+
+Ideia mencionada como possível evolução: hoje o `agentic/router.py` já veta boa parte do `done` por código (`campo_atual(state) is None`), mas o que sobra pro LLM — "essa mensagem do usuário significa confirmação pra terminar?" — ainda é decidido na mesma chamada que faz extração de campo, indicação de mídia etc. Já apareceu um caso real de vazamento (`done=True` falso durante a resolução de foto pendente, contido hoje com o parâmetro `permitir_done=False`), corrigido via ajuste de prompt. Não agendada — revisitar se esse tipo de vazamento voltar a aparecer depois do ajuste de prompt atual (ou seja, se o fix não generalizar sob teste). Diferente do tom hostil (julgamento fuzzy, baixo custo de erro), aqui o julgamento é mais estreito e o custo de errar é alto (sessão trava ou encerra errado), então uma call dedicada teria ganho real se a entrada só de prompt não segurar.

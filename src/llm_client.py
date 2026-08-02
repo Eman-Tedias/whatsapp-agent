@@ -1,17 +1,11 @@
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
 from harpy import text
 
 from guardrail_prompt import SYSTEM_GUARDRAIL_PROMPT
-
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-# GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
-GROQ_FALLBACK_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-TEST_MODE = os.getenv("TEST_MODE", "false").lower() == "true"
-TEST_MODEL = os.getenv("TEST_MODEL", "gemini-3.1-flash-lite")
+from config import GEMINI_MODEL, GROQ_FALLBACK_MODEL, TEST_MODE, TEST_MODEL
 
 
 def new_call():

@@ -1,6 +1,6 @@
-import os
+from config import ROUTER_MODE
 
-if os.getenv("ROUTER_MODE", "deterministic") == "agentic":
+if ROUTER_MODE == "agentic":
     from agentic.schemas import Session
 else:
     from deterministic.schemas import Session

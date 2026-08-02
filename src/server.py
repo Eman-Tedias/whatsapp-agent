@@ -1,57 +1,29 @@
 import asyncio
-import httpx
 import os
 import time
 
 from collections import deque
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, Form, UploadFile, File, Request, Response
 from transcription import transcribe
 
-load_dotenv()
+from config import (
+    ROUTER_MODE,
+    WHATSAPP_VERIFY_TOKEN,
+    IMAGES_DIR,
+    LIMPEZA_FOTOS_HABILITADA,
+    LIMPEZA_FOTOS_DIAS,
+    TEST_MODE,
+)
+from whatsapp_client import get_token, whatsapp_send_text, _download_whatsapp_media, MIME_TO_EXT
 
 # Duas implementações do router coexistem (mesma interface pública: Session.step(text)
 # e Session.registrar_imagem(...)) -- essa env var escolhe qual entra em produção sem
 # precisar mexer no resto do server.py.
-ROUTER_MODE = os.getenv("ROUTER_MODE", "deterministic")
 if ROUTER_MODE == "agentic":
     from agentic.schemas import Conversa, Roteiro, Session
 else:
     from deterministic.schemas import Conversa, Roteiro, Session
-
-WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
-WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
-WHATSAPP_API_URL = f"https://graph.facebook.com/v19.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
-
-IMAGES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "images")
-os.makedirs(IMAGES_DIR, exist_ok=True)
-
-# Higiene básica de disco -- só apaga por idade, não sabe se a foto já foi "entregue"
-# de verdade (isso depende da arquitetura de callback com o client, ainda não
-# decidida; ver BACKLOG_FUTURO.md). Fácil desligar via env var se algo não bater.
-LIMPEZA_FOTOS_HABILITADA = os.getenv("LIMPEZA_FOTOS_HABILITADA", "true").lower() == "true"
-LIMPEZA_FOTOS_DIAS = int(os.getenv("LIMPEZA_FOTOS_DIAS", "30"))
-
-# Sem um trigger externo de sessão (calendário/client -- ver BACKLOG_FUTURO.md), uma
-# sessão encerrada em produção fica travada pro mesmo número até reiniciar o servidor
-# (proposital). Em TEST_MODE, recomeça do zero na próxima mensagem pra facilitar teste manual.
-TEST_MODE = os.getenv("TEST_MODE", "false").lower() == "true"
-
-MIME_TO_EXT = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-    "image/bmp": ".bmp",
-    "image/tiff": ".tiff",
-    "image/heic": ".heic",
-    "image/heif": ".heif",
-}
-
-def get_token() -> str:
-    load_dotenv(override=True)
-    return os.getenv("WHATSAPP_TOKEN", "")
 
 
 def limpar_fotos_antigas() -> None:
@@ -121,39 +93,6 @@ def _get_lock(session_id: str) -> asyncio.Lock:
         _session_locks[session_id] = asyncio.Lock()
     return _session_locks[session_id]
 
-async def whatsapp_send_text(to: str, text: str, tentativas: int = 3) -> bool:
-    headers = {
-        "Authorization": f"Bearer {get_token()}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "text",
-        "text": {"body": text}
-
-    }
-    for tentativa in range(1, tentativas + 1):
-        try:
-            async with httpx.AsyncClient() as client:
-                r = await client.post(WHATSAPP_API_URL, json=payload, headers=headers, timeout=15)
-            if r.status_code < 400:
-                print(f"[WA/SENT] to={to}")
-                return True
-            print(f"[WA/SEND ERROR] tentativa {tentativa}/{tentativas} -- {r.status_code} → {r.text}")
-            if r.status_code < 500:
-                # Erro do lado do cliente (token inválido, payload errado, número
-                # bloqueado...) -- tentar de novo não vai mudar o resultado.
-                return False
-        except httpx.RequestError as e:
-            print(f"[WA/SEND ERROR] tentativa {tentativa}/{tentativas} -- {e}")
-        if tentativa < tentativas:
-            await asyncio.sleep(2 ** (tentativa - 1))
-
-    print(f"[WA/SEND FAILED] não consegui enviar mensagem pra {to} após {tentativas} tentativas")
-    return False
-
 async def _processar_imagem(session: Session, sender: str, media_id: str, mime_type: str, sha256: str | None, legenda: str | None = None) -> str | None:
     """Baixa e registra uma imagem, seja ela recebida como foto ou como documento
     (WhatsApp manda o mesmo .jpg/.png por qualquer um dos dois caminhos, dependendo
@@ -169,22 +108,6 @@ async def _processar_imagem(session: Session, sender: str, media_id: str, mime_t
         f.write(image_bytes)
     print(f"[WA/image] salvo em {filepath} (mime_type={mime_type!r})")
     return await session.registrar_imagem(filepath, sha256=sha256, media_id=media_id, legenda=legenda)
-
-
-async def _download_whatsapp_media(media_id: str) -> bytes:
-    headers = {"Authorization": f"Bearer {get_token()}"}
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"https://graph.facebook.com/v19.0/{media_id}",
-            headers=headers,
-            timeout=10,
-        )
-        r.raise_for_status()
-        media_url = r.json()["url"]
-
-        r2 = await client.get(media_url, headers=headers, timeout=30)
-        r2.raise_for_status()
-        return r2.content
 
 @app.get("/webhook")
 async def webhook_verify(request: Request):
