@@ -5,3 +5,5 @@
 /QA_RESULTS.md
 /qa_test.py
 /test.ipynb
+__pycache__/
+*.pyc
