@@ -50,7 +50,7 @@ Each project's fields (questions, type, label) live in [src/lesson.py](src/lesso
 | Layer | Technology |
 |---|---|
 | Backend / API | FastAPI + Uvicorn |
-| Data extraction | LLM via Groq (Llama 3.1) with structured output (LangChain + Pydantic) |
+| LLM / data extraction | Gemini (primary) with Groq fallback, via [`harpy`](https://github.com/Eman-Tedias/harpy) — structured output + guardrail |
 | Audio transcription | Whisper (`whisper-large-v3-turbo`, via Groq) |
 | Test interface | Streamlit (simulates a WhatsApp-style chat UI) |
 | Production channel (partial) | WhatsApp Cloud API (webhook implemented, not yet connected to an active account) |
@@ -58,17 +58,30 @@ Each project's fields (questions, type, label) live in [src/lesson.py](src/lesso
 ## Structure
 
 ```
-app.py                  # Streamlit interface (chat simulation, local/test use)
+app.py                      # Streamlit interface (chat simulation, local/test use)
 src/
-  server.py             # FastAPI API: /message (Streamlit), /webhook and /audio (WhatsApp)
-  schemas.py            # Pydantic models: Session, Conversa, Roteiro (fixed copy)
-  lesson.py             # Fields collected per project
-  conversation.py       # State machine: collection and editing phases
-  extraction.py         # LLM calls: bulk extraction, editing, and fallback
-  llm_client.py         # LLM client setup (Groq)
-  prompts.py            # System prompts used for extraction/editing/fallback
-  transcription.py      # Audio transcription (Whisper via Groq)
-  main.py               # Simple CLI to test the conversation in the terminal
+  server.py                 # FastAPI API: /message (Streamlit), /webhook and /audio (WhatsApp)
+  config.py                 # Centralized env vars and thresholds
+  whatsapp_client.py        # WhatsApp Cloud API mechanics (token, sending, media download)
+  llm_client.py             # LLM client via harpy (Gemini primary + Groq fallback)
+  guardrail_prompt.py       # Guardrail prompt, shared by both routers
+  lesson.py                 # Fields collected per project
+  transcription.py          # Audio transcription (Whisper via Groq)
+  main.py                   # Simple CLI to test the conversation in the terminal
+  deterministic/            # Explicit state-machine router
+    schemas.py              # Session, Conversa, Roteiro (fixed copy)
+    conversation.py         # Collection and editing phases
+    extraction.py           # LLM calls: bulk extraction, editing, fallback, media
+    prompts.py
+  agentic/                  # Single-call-per-turn router (see section above)
+    schemas.py
+    router.py
+    state.py
+    lesson_adapter.py
+    prompts.py
+vendor/
+  harpy-0.1.0-py3-none-any.whl  # local wheel (offline fallback; requirements.txt installs from GitHub)
+Dockerfile                  # Container build (WORKDIR switches to src/ before running uvicorn)
 ```
 
 ## Configuration
@@ -76,11 +89,35 @@ src/
 Create a `.env` file at the project root:
 
 ```bash
-# Required. Groq API key, used for data extraction (LLM) and audio transcription (Whisper)
+# Required. Gemini API key, the primary model (via harpy)
+GEMINI_API_KEY=
+
+# Required. Groq API key, used as Gemini's fallback and for audio transcription (Whisper)
 GROQ_API_KEY=
 
-# Optional (default llama3-8b-8192). Groq model used for data extraction
-GROQ_MODEL=llama-3.1-8b-instant
+# Optional (default gemini-3.5-flash-lite). Gemini model used as primary
+GEMINI_MODEL=gemini-3.5-flash-lite
+
+# Optional (default openai/gpt-oss-120b). Groq model used as Gemini's fallback
+GROQ_MODEL=openai/gpt-oss-120b
+
+# Optional (default deterministic). Chooses the router implementation: "deterministic"
+# (explicit state machine) or "agentic" (a single call per turn decides everything) --
+# see "Two conversation architectures" above
+ROUTER_MODE=deterministic
+
+# Optional (default false). In manual testing: uses a separate model/quota (TEST_MODEL) to
+# avoid burning the production quota, and restarts the session from scratch after it closes
+TEST_MODE=false
+
+# Optional (default gemini-3.1-flash-lite). Model used only when TEST_MODE=true
+TEST_MODEL=gemini-3.1-flash-lite
+
+# Optional (default true). Toggles automatic cleanup of old photos on server startup
+LIMPEZA_FOTOS_HABILITADA=true
+
+# Optional (default 30). Age in days after which a photo gets deleted by the automatic cleanup
+LIMPEZA_FOTOS_DIAS=30
 
 # The variables below are only needed for the WhatsApp integration
 
@@ -124,4 +161,4 @@ python src/main.py
 
 ## Status
 
-Project in POC/MVP stage, under active development. Planned improvements include stronger safeguards against prompt manipulation, semantic validation of numeric fields, and more transparency in edit and session-closing messages.
+Project in POC/MVP stage, under active development. Already implemented: a guardrail against prompt manipulation (blocks exploit/persona-switch attempts on every LLM call, see [src/guardrail_prompt.py](src/guardrail_prompt.py)) and edit/session-closing messages with a specific reason (remaining attempts, exact closing reason, instead of a generic notice). Still pending: semantic validation of numeric fields -- today `student_count` is treated as free text in the `deterministic` implementation; `agentic` already rejects non-numeric values (left pending instead of storing garbage), but neither validates plausibility (e.g., a negative or absurdly high number).
