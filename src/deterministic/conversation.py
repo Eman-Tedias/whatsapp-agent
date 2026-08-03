@@ -16,9 +16,6 @@ def _e_bloqueio_guardrail(e: Exception) -> bool:
 
 
 def _resposta_guardrail_bloqueado(session) -> str:
-    """Converte um bloqueio do guardrail numa resposta educada em vez de deixar o
-    usuário sem nenhuma resposta. Reincidência repetida encerra a sessão e entrega
-    os dados coletados até então, do jeito que estão."""
     session.tentativas_guardrail += 1
     if session.tentativas_guardrail >= MAX_TENTATIVAS_GUARDRAIL:
         session.done = True
@@ -57,10 +54,6 @@ def _campos_respondidos_desc(session) -> str:
 
 
 def _aplicar_correcao(session, correcao_campo: str, correcao_valor: str, campo_atual: str | None = None) -> str:
-    """Aplica uma correção a um campo de texto já respondido, detectada fora do fluxo
-    normal (o usuário lembrou de algo enquanto respondia outra pergunta ou mandava
-    fotos). Retorna um aviso pra prefixar na resposta, ou string vazia se não houve
-    correção real (campo vazio ou é o próprio campo que está sendo respondido agora)."""
     if not correcao_campo or correcao_campo == campo_atual:
         return ""
     session.json_model[correcao_campo] = correcao_valor
@@ -68,11 +61,6 @@ def _aplicar_correcao(session, correcao_campo: str, correcao_valor: str, campo_a
 
 
 async def _tratar_confirmacao_avanco_midia(session, text: str, ao_confirmar) -> str:
-    """Depois que o educador diz que terminou de mandar fotos, perguntamos se pode
-    seguir antes de avançar de verdade -- proteção contra contagem errada (ex: ele
-    quis dizer que terminou UM lote, não que não vai mandar mais nenhuma foto).
-    `ao_confirmar` gera a resposta final (avançar campo ou mostrar resumo de edição),
-    específica de cada fase, só quando a confirmação vem positiva."""
     campo_nome = session.confirmando_avanco_midia
     label = _label_do_campo(campo_nome)
     try:
@@ -236,9 +224,6 @@ async def mensagem_edicao(session, text: str) -> str:
             return _resposta_guardrail_bloqueado(session)
         raise
     dados_depois = session.json_model.copy()
-    # Log de "campo: antes -> depois" só pra quem realmente mudou -- vira o contexto
-    # que a próxima chamada recebe no lugar da transcrição bruta, então só entra aqui
-    # (depois de um run_edit bem-sucedido) o que de fato foi aplicado.
     for c in campos_texto:
         if dados_antes[c["campo"]] != dados_depois[c["campo"]]:
             session.changelog_edicao.append(f'{c["campo"]}: "{dados_antes[c["campo"]] or ""}" -> "{dados_depois[c["campo"]] or ""}"')

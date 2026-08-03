@@ -17,9 +17,6 @@ from config import (
 )
 from whatsapp_client import get_token, whatsapp_send_text, _download_whatsapp_media, MIME_TO_EXT
 
-# Duas implementações do router coexistem (mesma interface pública: Session.step(text)
-# e Session.registrar_imagem(...)) -- essa env var escolhe qual entra em produção sem
-# precisar mexer no resto do server.py.
 if ROUTER_MODE == "agentic":
     from agentic.schemas import Conversa, Roteiro, Session
 else:
@@ -50,18 +47,8 @@ async def _limpeza_ao_iniciar():
     limpar_fotos_antigas()
 
 sessions: dict[str, Session] = {}
-# Um lock por sessão -- garante que duas mensagens quase simultâneas do mesmo número
-# (comum no WhatsApp: texto + correção rápida, ou duas fotos em sequência) sejam
-# processadas uma depois da outra, nunca em paralelo. Sem isso, as duas podiam ler o
-# mesmo estado antes de qualquer uma escrever, perdendo dado ou avançando campo_index
-# duas vezes. Seguro criar sem lock de proteção própria: não há nenhum `await` entre a
-# checagem e a criação, então o event loop não intercala outra tarefa nesse meio tempo.
 _session_locks: dict[str, asyncio.Lock] = {}
 
-# A Meta reentrega o mesmo webhook se não receber um 200 rápido o bastante --
-# comum quando o processamento demora (retry/backoff de LLM, rate limit, etc.).
-# Sem isso, cada reentrega era tratada como mensagem nova e gerava resposta duplicada.
-# Bound simples pra não crescer pra sempre; não precisa sobreviver a restart.
 _MENSAGENS_PROCESSADAS_MAX = 500
 _mensagens_processadas: set[str] = set()
 _mensagens_processadas_ordem: deque[str] = deque()
@@ -94,9 +81,6 @@ def _get_lock(session_id: str) -> asyncio.Lock:
     return _session_locks[session_id]
 
 async def _processar_imagem(session: Session, sender: str, media_id: str, mime_type: str, sha256: str | None, legenda: str | None = None) -> str | None:
-    """Baixa e registra uma imagem, seja ela recebida como foto ou como documento
-    (WhatsApp manda o mesmo .jpg/.png por qualquer um dos dois caminhos, dependendo
-    de qual botão o usuário tocou no app). Retorna None se já foi processada antes."""
     ext = MIME_TO_EXT.get(mime_type, ".jpg")
     filename = f"{sender}_{media_id}{ext}"
     filepath = os.path.join(IMAGES_DIR, filename)
@@ -169,9 +153,6 @@ async def webhook_receive(request: Request):
                     return {"status": "duplicate"}
 
             elif msg_type == "document" and msg["document"].get("mime_type", "").startswith("image/"):
-                # WhatsApp manda como "document" (não "image") quando o usuário escolhe
-                # o arquivo pelo seletor de Documentos em vez da galeria/câmera -- mesmo
-                # sendo um .jpg/.png de verdade.
                 media_id = msg["document"]["id"]
                 mime_type = msg["document"]["mime_type"]
                 sha256 = msg["document"].get("sha256")
@@ -181,17 +162,10 @@ async def webhook_receive(request: Request):
                     return {"status": "duplicate"}
 
             elif msg_type == "unsupported" and any(e.get("code") == 131051 for e in msg.get("errors", [])):
-                # Evento vazio que a Meta manda ao lado de um envio em lote/álbum -- não
-                # carrega nenhuma mídia própria (sem media_id/mime_type), as fotos reais do
-                # lote chegam certinho como mensagens "image" separadas. Responder aqui só
-                # confundiria o usuário, já que as fotos de verdade já foram registradas
-                # silenciosamente. Só loga, sem avisar nada.
                 print(f"[WA/unsupported] evento vazio de lote/álbum, ignorando -- payload={msg!r}")
                 reply = ""
 
             else:
-                # Outro tipo que o WhatsApp não conseguiu classificar (motivo diferente do
-                # caso acima) -- loga o payload cru pra investigar caso vire um padrão.
                 print(f"[WA/unsupported] payload={msg!r}")
                 reply = "No momento só consigo processar mensagens de texto, áudio 🎤 ou foto 📸. Pode reenviar nesse formato?"
 

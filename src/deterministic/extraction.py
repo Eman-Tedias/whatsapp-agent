@@ -6,8 +6,6 @@ from deterministic.schemas import BULK_EXTRACTION_SCHEMA, FALLBACK_QUESTION_SCHE
 
 
 def _log_llm(nome: str, session_id: str, entrada: str, saida) -> None:
-    """Log de toda chamada de LLM pro stdout do container -- Langfuse é ótimo pra
-    investigar depois, mas não dá pra ler no `docker logs` na hora."""
     print(f"[LLM:{nome}] session={session_id[:8]} entrada={entrada!r} saida={saida!r}")
 
 
@@ -49,9 +47,6 @@ async def run_edit(new_call, session_id, instrucao, campos, campos_midia, json_m
     )
     _log_llm("edit", session_id, instrucao, result)
     for c in campos:
-        # Vazio = "não alterei esse campo" (mesma convenção do resto do app), nunca
-        # "esvazie o campo" -- protege contra o modelo esquecer de ecoar um valor que
-        # não devia mudar. Camada extra além do prompt já pedir só o campo alterado.
         novo_valor = getattr(result, c['campo'])
         if novo_valor:
             json_model[c['campo']] = novo_valor

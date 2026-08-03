@@ -56,8 +56,6 @@ EDIT_SCHEMA = {
         "type": "string",
         "optional": True,
         "default": "nenhum",
-        # "nenhum" em vez de "" -- a API do Gemini rejeita enum com valor de string vazia
-        # ("cannot be empty"), então precisa de um sentinela não-vazio pra "sem pedido".
         "literal": [c["campo"] for c in campos_imagem] + ["nenhum"],
         "description": "nome exato de um dos campos de mídia listados no prompt que o educador pediu para refazer/apagar/reenviar as fotos anteriores; 'nenhum' se não houver esse pedido",
     },
@@ -66,16 +64,10 @@ EDIT_SCHEMA = {
         "optional": True,
         "default": "nenhum",
         "literal": [c["campo"] for c in campos_texto] + ["nenhum"],
-        # Sinal separado e explícito pra "deixar em branco de propósito" (ex: "mandei
-        # esse campo errado, deixa vazio que eu resolvo depois") -- sem isso, string
-        # vazia no valor do próprio campo só significa "não mudei nada".
         "description": "nome exato de um campo de texto que o educador pediu explicitamente para deixar em branco/vazio por agora (não apenas 'não sei'/incerteza -- um pedido claro de limpar o campo); 'nenhum' se não houver esse pedido",
     },
 }
 
-# Adicionados depois de EDIT_SCHEMA (que já capturou o estado anterior de
-# BULK_EXTRACTION_SCHEMA via spread) para não vazar pra lá -- na fase de edição a
-# correção de texto já é livre por natureza, não precisa desse sinal à parte.
 _CORRECAO_CAMPO_TEXTO = {
     "type": "string",
     "optional": True,
@@ -161,35 +153,19 @@ class Session(BaseModel):
     campo_index: int = 0
     tentativas: int = 0
     fase: Literal["coleta", "edicao"] = "coleta"
-    # Log de mudanças de campo já aplicadas ("campo: 'antes' -> 'depois'"), não a
-    # transcrição bruta da conversa -- evita dois problemas do design anterior: (1) uma
-    # instrução antiga podia ser "re-derivada" como se fosse a mensagem atual, e (2) uma
-    # mensagem bloqueada pelo guardrail nunca chegava a virar log (só aplicado após
-    # sucesso), então não "envenenava" chamadas futuras como o texto bruto fazia.
     changelog_edicao: list = Field(default_factory=list)
     edicoes: int = 0
     sem_alteracao: int = 0
     done: bool = False
     despedida_enviada: bool = False
-    # A saudação só deve aparecer uma vez, na primeira mensagem real da sessão -- não dá
-    # pra depender de "texto vazio" pra detectar isso (a primeira mensagem de verdade do
-    # WhatsApp já vem com conteúdo; só o CLI de teste em main.py chamava step("")).
     saudacao_enviada: bool = False
     imagens: dict = Field(default_factory=dict)
-    # Hashes (sha256) das fotos já recebidas por campo -- detecta o educador mandando
-    # a mesma foto de novo por engano/hábito, distinto da deduplicação de reentrega de
-    # webhook por media_id (que já existe em server.py).
     imagens_hashes: dict = Field(default_factory=dict)
     aguardando_midia: str | None = None
     midia_substituindo: bool = False
-    # Nome do campo de mídia (se algum) aguardando confirmação explícita do educador
-    # pra avançar, depois que ele disse "pronto"/"terminei" -- em vez de avançar na
-    # hora, perguntamos "podemos seguir?" primeiro (proteção contra contagem errada).
     confirmando_avanco_midia: str | None = None
     tentativas_midia: int = 0
     tentativas_guardrail: int = 0
-    # Fotos recebidas na edição sem nenhum "refazer" em andamento -- ficam aqui até o
-    # educador esclarecer pra qual campo de mídia elas são (ver Roteiro/conversation.py).
     fotos_pendentes: list = Field(default_factory=list)
     tentativas_foto_pendente: int = 0
 
@@ -200,8 +176,6 @@ class Session(BaseModel):
         return f"{Roteiro.saudacao(self.nome)}\n\n"
 
     def resposta_se_encerrada(self) -> str | None:
-        """Se a sessão já terminou, retorna a despedida uma única vez (e None depois
-        disso) -- pra parar de reprocessar/gastar LLM em mensagens após o encerramento."""
         if not self.done:
             return None
         if self.despedida_enviada:
@@ -226,7 +200,6 @@ class Session(BaseModel):
         return f"{prefixo}{resposta}"
 
     def _adicionar_foto(self, campo_nome: str, caminho: str, sha256: str | None) -> tuple[int, bool]:
-        """Registra a foto no campo dado. Retorna (contagem atual, era_duplicata)."""
         if campo_nome == self.aguardando_midia and self.midia_substituindo:
             self.imagens[campo_nome] = []
             self.imagens_hashes[campo_nome] = set()
@@ -272,8 +245,6 @@ class Session(BaseModel):
         count, duplicata = self._adicionar_foto(campo_nome, caminho, sha256)
         if duplicata:
             return f"Essa foto parece igual a uma que você já enviou pra esse campo, então não contei ela de novo. ({count} até agora)"
-        # Sem resposta por foto -- só confirma quando o educador avisar que terminou
-        # (ver confirmando_avanco_midia em conversation.py).
         return ""
 
     def resolver_fotos_pendentes(self, campo_nome: str) -> str:

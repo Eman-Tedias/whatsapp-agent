@@ -45,8 +45,6 @@ async def whatsapp_send_text(to: str, text: str, tentativas: int = 3) -> bool:
                 return True
             print(f"[WA/SEND ERROR] tentativa {tentativa}/{tentativas} -- {r.status_code} → {r.text}")
             if r.status_code < 500:
-                # Erro do lado do cliente (token inválido, payload errado, número
-                # bloqueado...) -- tentar de novo não vai mudar o resultado.
                 return False
         except httpx.RequestError as e:
             print(f"[WA/SEND ERROR] tentativa {tentativa}/{tentativas} -- {e}")

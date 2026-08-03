@@ -149,7 +149,3 @@ Analise a resposta do colaborador e determine a qual campo ele deseja vincular a
 2. Indeterminado: Se a resposta for fora do tópico, confusa, pouco clara ou se houver ambiguidade entre dois ou mais campos, defina "campo_midia" estritamente como "indeterminado".
 3. {_REGRA_PERGUNTA_FORA_ESCOPO}
 """
-
-# SYSTEM_GUARDRAIL_PROMPT mudou para guardrail_prompt.py (raiz de src/) -- é
-# compartilhado entre deterministic_version e agentic_version, não é específico
-# de router.

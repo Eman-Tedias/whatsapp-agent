@@ -35,11 +35,7 @@ class Session(BaseModel):
     state: AgentState = Field(default_factory=new_state_from_lesson)
     despedida_enviada: bool = False
     imagens: dict[str, list[str]] = Field(default_factory=dict)
-    # Dedup por sha256 -- em nível de sessão, não por campo: quando a foto chega ainda
-    # não se sabe necessariamente a qual campo ela pertence.
     hashes_recebidos: set = Field(default_factory=set)
-    # Fotos recebidas enquanto o campo_atual ainda não era de imagem (fora de ordem) --
-    # ficam aqui até a próxima mensagem de texto indicar a qual campo pertencem.
     fotos_pendentes: list[dict] = Field(default_factory=list)
     tentativas_guardrail: int = 0
 
@@ -48,11 +44,6 @@ class Session(BaseModel):
         return self.state.done
 
     def _resposta_guardrail_bloqueado(self) -> str:
-        """Converte um bloqueio do guardrail numa resposta educada referente à recusa
-        em si, em vez do erro técnico genérico. Reincidência repetida encerra a sessão
-        e entrega os dados coletados até então, do jeito que estão. Não expõe a
-        contagem de tentativas pro colaborador -- só avisa explicitamente na
-        penúltima vez, antes de encerrar de fato na última."""
         self.tentativas_guardrail += 1
         base = "Infelizmente não posso ajudar com isso. Por favor, responda apenas as questões referentes ao registro da atividade."
         if self.tentativas_guardrail >= MAX_TENTATIVAS_GUARDRAIL:
@@ -73,9 +64,6 @@ class Session(BaseModel):
     def _aplicar_campo_midia_limpar(self, campo_key: str | None) -> None:
         if not campo_key:
             return
-        # Confia na constraint "literal" do schema (build_turn_model), mas revalida
-        # aqui porque o fallback pro Groq (router.py) pode não reforçar essa
-        # constraint da mesma forma que a controlled generation do Gemini.
         if campo_key not in {f.key for f in self._campos_imagem()}:
             return
         self.imagens[campo_key] = []
@@ -83,16 +71,9 @@ class Session(BaseModel):
         self.state.midia_concluida.discard(campo_key)
 
     def _campos_imagem(self) -> list:
-        """Todos os campos de imagem, concluídos ou não -- uma foto sempre pode ser
-        ADICIONADA a um campo já concluído (só a remoção exige apagar tudo via
-        campo_midia_limpar), então "concluído" não pode ser motivo pra recusar."""
         return [f for f in self.state.fields if f.kind == "image"]
 
     async def _resolver_fotos_pendentes(self, mensagem_indicando_campo: str) -> str:
-        """Usa uma mensagem (legenda da própria foto, ou a próxima mensagem de texto)
-        pra identificar a qual campo as fotos em `fotos_pendentes` pertencem.
-        `permitir_done=False` -- essa chamada não é um turno de conversa de verdade,
-        só identifica campo, e não pode encerrar a sessão sozinha."""
         mensagem = f"[O colaborador está indicando a qual campo pertencem {len(self.fotos_pendentes)} foto(s) pendente(s) de identificação.] {mensagem_indicando_campo}"
         try:
             result = await router_turn(self.state, mensagem, permitir_done=False)
@@ -143,9 +124,6 @@ class Session(BaseModel):
             self.state.values.setdefault(campo.key, [])
             self.state.values[campo.key].append(media_id)
             self.imagens.setdefault(campo.key, []).append(caminho)
-            # A legenda pode conter algo além de "essa foto é pra X" (ex: também
-            # responde a descrição da aula, ou diz "pronto"/"já mandei todas") --
-            # processa como um turno de conversa normal, esse sim pode encerrar a sessão.
             return await self.step(legenda) if legenda else ""
 
         self.fotos_pendentes.append({"caminho": caminho, "sha256": sha256, "media_id": media_id})
