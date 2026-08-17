@@ -3,6 +3,7 @@ import os
 import time
 
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, Form, UploadFile, File, Request, Response
 from transcription import transcribe
@@ -45,6 +46,11 @@ app = FastAPI()
 @app.on_event("startup")
 async def _limpeza_ao_iniciar():
     limpar_fotos_antigas()
+
+
+@app.on_event("startup")
+async def _configurar_thread_pool():
+    asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=100))
 
 sessions: dict[str, Session] = {}
 _session_locks: dict[str, asyncio.Lock] = {}

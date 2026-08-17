@@ -20,7 +20,7 @@ TEST_MODE = os.getenv("TEST_MODE", "false").lower() == "true"
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 GROQ_FALLBACK_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-TEST_MODEL = os.getenv("TEST_MODEL", "gemini-3.1-flash-lite")
+TEST_MODEL = os.getenv("TEST_MODEL", "gemini-3.5-flash-lite")
 
 MAX_EDICOES = 5
 MAX_SEM_ALTERACAO = 3
